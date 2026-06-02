@@ -124,184 +124,204 @@ const getCompanyForEmployer = (employerId: string): Company | undefined => {
 
 // Register
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, role } = req.body;
-  
-  if (!name || !email || !password || !role) {
-    return res.status(400).json({ error: "Missing required parameters" });
-  }
-
-  await syncFromSupabase();
-
-  // Email constraint check
-  const existingUser = usersDb.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (existingUser) {
-    return res.status(400).json({ error: "User already exists with this email address." });
-  }
-
-  const newUser: User = {
-    id: randomUUID(),
-    name,
-    email: email.toLowerCase(),
-    role: role as UserRole,
-    status: "active",
-    created_at: new Date().toISOString()
-  };
-
-  usersDb.push(newUser);
-
-  // If Employer, automatically bootstrap an associated company profile
-  let company: Company | undefined;
-  if (role === 'employer') {
-    company = {
-      id: randomUUID(),
-      employer_id: newUser.id,
-      company_name: `${name}'s Organization`,
-      company_description: "This is your default company profile. Click 'Edit Profile' to customize description and website link.",
-      website: "https://yourcompany.com",
-      location: "Remote / Worldwide",
-      logo_url: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=150&h=150&q=80"
-    };
-    companiesDb.push(company);
-  }
-
-  if (supabase) {
-    try {
-      await supabase.from('users').insert([newUser]);
-      if (company) {
-        await supabase.from('companies').insert([company]);
-      }
-    } catch (err: any) {
-      console.warn("Supabase database insert err on register:", err.message || err);
+  try {
+    const { name, email, password, role } = req.body;
+    
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ error: "Missing required parameters" });
     }
-  }
 
-  res.status(201).json({ user: newUser, company });
+    await syncFromSupabase();
+
+    // Email constraint check
+    const existingUser = usersDb.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+    if (existingUser) {
+      return res.status(400).json({ error: "User already exists with this email address." });
+    }
+
+    const newUser: User = {
+      id: randomUUID(),
+      name,
+      email: email.toLowerCase(),
+      role: role as UserRole,
+      status: "active",
+      created_at: new Date().toISOString()
+    };
+
+    usersDb.push(newUser);
+
+    // If Employer, automatically bootstrap an associated company profile
+    let company: Company | undefined;
+    if (role === 'employer') {
+      company = {
+        id: randomUUID(),
+        employer_id: newUser.id,
+        company_name: `${name}'s Organization`,
+        company_description: "This is your default company profile. Click 'Edit Profile' to customize description and website link.",
+        website: "https://yourcompany.com",
+        location: "Remote / Worldwide",
+        logo_url: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=150&h=150&q=80"
+      };
+      companiesDb.push(company);
+    }
+
+    if (supabase) {
+      try {
+        await supabase.from('users').insert([newUser]);
+        if (company) {
+          await supabase.from('companies').insert([company]);
+        }
+      } catch (err: any) {
+        console.warn("Supabase database insert err on register:", err.message || err);
+      }
+    }
+
+    res.status(201).json({ user: newUser, company });
+  } catch (error: any) {
+    console.error("Registration endpoint crash:", error);
+    res.status(500).json({ error: "An unexpected error occurred during user registration: " + (error.message || error) });
+  }
 });
 
 // Login
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password, role } = req.body;
+  try {
+    const { email, password, role } = req.body;
 
-  if (!email || !password || !role) {
-    return res.status(400).json({ error: "Missing email, password, or role parameters." });
+    if (!email || !password || !role) {
+      return res.status(400).json({ error: "Missing email, password, or role parameters." });
+    }
+
+    await syncFromSupabase();
+
+    const user = usersDb.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials. User record not found." });
+    }
+
+    // In this demo implementation, any password works for effortless evaluation!
+    if (user.role !== role) {
+      return res.status(401).json({ error: `Incorrect role. Use the correct tab to login as ${user.role}.` });
+    }
+
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: "Your account is suspended by an Administrator. Please reach out to candidate@jobbridge.com." });
+    }
+
+    const responsePayload: any = { user };
+
+    if (role === 'employer') {
+      responsePayload.company = getCompanyForEmployer(user.id);
+    }
+
+    res.json(responsePayload);
+  } catch (error: any) {
+    console.error("Login endpoint crash:", error);
+    res.status(500).json({ error: "An unexpected error occurred during login: " + (error.message || error) });
   }
-
-  await syncFromSupabase();
-
-  const user = usersDb.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (!user) {
-    return res.status(401).json({ error: "Invalid credentials. User record not found." });
-  }
-
-  // In this demo implementation, any password works for effortless evaluation!
-  if (user.role !== role) {
-    return res.status(401).json({ error: `Incorrect role. Use the correct tab to login as ${user.role}.` });
-  }
-
-  if (user.status === 'suspended') {
-    return res.status(403).json({ error: "Your account is suspended by an Administrator. Please reach out to candidate@jobbridge.com." });
-  }
-
-  const responsePayload: any = { user };
-
-  if (role === 'employer') {
-    responsePayload.company = getCompanyForEmployer(user.id);
-  }
-
-  res.json(responsePayload);
 });
 
 // Update Profile
 app.post('/api/profile/update', async (req, res) => {
-  const { userId, name, email, companyName, companyDescription, website, location, logoUrl } = req.body;
+  try {
+    const { userId, name, email, companyName, companyDescription, website, location, logoUrl } = req.body;
 
-  if (!userId) {
-    return res.status(400).json({ error: "User ID parameter is mandatory." });
-  }
-
-  await syncFromSupabase();
-
-  if (isUserSuspended(userId)) {
-    return res.status(403).json({ error: "Access denied. Suspended account." });
-  }
-
-  const userIndex = usersDb.findIndex(u => u.id === userId);
-  if (userIndex === -1) {
-    return res.status(404).json({ error: "User not found" });
-  }
-
-  // Update basic user name & email
-  usersDb[userIndex].name = name || usersDb[userIndex].name;
-  if (email) usersDb[userIndex].email = email.toLowerCase();
-
-  let updatedCompany: Company | undefined;
-  if (usersDb[userIndex].role === 'employer') {
-    const compIndex = companiesDb.findIndex(c => c.employer_id === userId);
-    if (compIndex !== -1) {
-      companiesDb[compIndex].company_name = companyName || companiesDb[compIndex].company_name;
-      companiesDb[compIndex].company_description = companyDescription || companiesDb[compIndex].company_description;
-      companiesDb[compIndex].website = website || companiesDb[compIndex].website;
-      companiesDb[compIndex].location = location || companiesDb[compIndex].location;
-      companiesDb[compIndex].logo_url = logoUrl || companiesDb[compIndex].logo_url;
-      updatedCompany = companiesDb[compIndex];
-    } else {
-      updatedCompany = {
-        id: randomUUID(),
-        employer_id: userId,
-        company_name: companyName || "My Enterprise Inc.",
-        company_description: companyDescription || "",
-        website: website || "",
-        location: location || "",
-        logo_url: logoUrl || ""
-      };
-      companiesDb.push(updatedCompany);
+    if (!userId) {
+      return res.status(400).json({ error: "User ID parameter is mandatory." });
     }
-  }
 
-  if (supabase) {
-    try {
-      await supabase.from('users').update({
-        name: name || usersDb[userIndex].name,
-        email: email ? email.toLowerCase() : usersDb[userIndex].email
-      }).eq('id', userId);
+    await syncFromSupabase();
 
-      if (updatedCompany) {
-        const { data: existingComp } = await supabase.from('companies').select('id').eq('employer_id', userId).single();
-        if (existingComp) {
-          await supabase.from('companies').update({
-            company_name: updatedCompany.company_name,
-            company_description: updatedCompany.company_description,
-            website: updatedCompany.website,
-            location: updatedCompany.location,
-            logo_url: updatedCompany.logo_url
-          }).eq('employer_id', userId);
-        } else {
-          await supabase.from('companies').insert([updatedCompany]);
-        }
+    if (isUserSuspended(userId)) {
+      return res.status(403).json({ error: "Access denied. Suspended account." });
+    }
+
+    const userIndex = usersDb.findIndex(u => u.id === userId);
+    if (userIndex === -1) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Update basic user name & email
+    usersDb[userIndex].name = name || usersDb[userIndex].name;
+    if (email) usersDb[userIndex].email = email.toLowerCase();
+
+    let updatedCompany: Company | undefined;
+    if (usersDb[userIndex].role === 'employer') {
+      const compIndex = companiesDb.findIndex(c => c.employer_id === userId);
+      if (compIndex !== -1) {
+        companiesDb[compIndex].company_name = companyName || companiesDb[compIndex].company_name;
+        companiesDb[compIndex].company_description = companyDescription || companiesDb[compIndex].company_description;
+        companiesDb[compIndex].website = website || companiesDb[compIndex].website;
+        companiesDb[compIndex].location = location || companiesDb[compIndex].location;
+        companiesDb[compIndex].logo_url = logoUrl || companiesDb[compIndex].logo_url;
+        updatedCompany = companiesDb[compIndex];
+      } else {
+        updatedCompany = {
+          id: randomUUID(),
+          employer_id: userId,
+          company_name: companyName || "My Enterprise Inc.",
+          company_description: companyDescription || "",
+          website: website || "",
+          location: location || "",
+          logo_url: logoUrl || ""
+        };
+        companiesDb.push(updatedCompany);
       }
-    } catch (err: any) {
-      console.warn("Supabase database error on profile update:", err.message || err);
     }
-  }
 
-  res.json({
-    user: usersDb[userIndex],
-    company: updatedCompany
-  });
+    if (supabase) {
+      try {
+        await supabase.from('users').update({
+          name: name || usersDb[userIndex].name,
+          email: email ? email.toLowerCase() : usersDb[userIndex].email
+        }).eq('id', userId);
+
+        if (updatedCompany) {
+          const { data: existingComp } = await supabase.from('companies').select('id').eq('employer_id', userId).single();
+          if (existingComp) {
+            await supabase.from('companies').update({
+              company_name: updatedCompany.company_name,
+              company_description: updatedCompany.company_description,
+              website: updatedCompany.website,
+              location: updatedCompany.location,
+              logo_url: updatedCompany.logo_url
+            }).eq('employer_id', userId);
+          } else {
+            await supabase.from('companies').insert([updatedCompany]);
+          }
+        }
+      } catch (err: any) {
+        console.warn("Supabase database error on profile update:", err.message || err);
+      }
+    }
+
+    res.json({
+      user: usersDb[userIndex],
+      company: updatedCompany
+    });
+  } catch (error: any) {
+    console.error("Profile update endpoint crash:", error);
+    res.status(500).json({ error: "An unexpected error occurred during profile update: " + (error.message || error) });
+  }
 });
 
 // Password reset mock endpoint
 app.post('/api/auth/reset-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: "Email target is required." });
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email target is required." });
+    }
+    await syncFromSupabase();
+    const user = usersDb.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      return res.status(404).json({ error: "Account with that email address was not found." });
+    }
+    res.json({ success: true, message: "A password reset link was dispatched. In this demo preview, you are safe to login immediately with any password." });
+  } catch (error: any) {
+    console.error("Password reset crash:", error);
+    res.status(500).json({ error: "An unexpected error occurred during password reset: " + (error.message || error) });
   }
-  await syncFromSupabase();
-  const user = usersDb.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (!user) {
-    return res.status(404).json({ error: "Account with that email address was not found." });
-  }
-  res.json({ success: true, message: "A password reset link was dispatched. In this demo preview, you are safe to login immediately with any password." });
 });
 
 
