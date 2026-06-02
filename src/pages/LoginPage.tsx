@@ -223,39 +223,7 @@ export default function LoginPage({ setView, onLoginSuccess, showNotification }:
                 </button>
               </div>
 
-              {/* Testing Credentials panel */}
-              <div className="pt-4 mt-2 bg-gray-50 rounded-lg p-4 border border-dashed border-gray-200">
-                <span className="text-xxs font-mono uppercase bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full inline-block mb-3">
-                  Developer Testing shortcuts
-                </span>
-                
-                <div className="grid grid-cols-1 gap-2 text-xxs font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => handleCredentialShortcut('employee@jobbridge.com', 'employee')}
-                    className="w-full text-left text-gray-700 hover:text-blue-600 p-1.5 rounded hover:bg-white border border-transparent hover:border-gray-150 flex justify-between items-center bg-gray-50 text-sans cursor-pointer"
-                  >
-                    <span>🎯 Login as Employee (Candidate)</span>
-                    <span className="text-gray-400">Click to fill</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCredentialShortcut('employer@jobbridge.com', 'employer')}
-                    className="w-full text-left text-gray-700 hover:text-blue-600 p-1.5 rounded hover:bg-white border border-transparent hover:border-gray-150 flex justify-between items-center bg-gray-50 text-sans cursor-pointer"
-                  >
-                    <span>💼 Login as Employer</span>
-                    <span className="text-gray-400">Click to fill</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCredentialShortcut('admin@jobbridge.com', 'admin')}
-                    className="w-full text-left text-gray-700 hover:text-blue-600 p-1.5 rounded hover:bg-white border border-transparent hover:border-gray-150 flex justify-between items-center bg-gray-50 text-sans cursor-pointer"
-                  >
-                    <span>🛡️ Login as System Admin</span>
-                    <span className="text-gray-400">Click to fill</span>
-                  </button>
-                </div>
-              </div>
+
 
             </form>
           ) : (

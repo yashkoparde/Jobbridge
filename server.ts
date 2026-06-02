@@ -43,9 +43,17 @@ let jobsDb: Job[] = [];
 let applicationsDb: Application[] = [];
 let savedJobsDb: SavedJob[] = [];
 
-// --- DYNAMIC SYNC LAYER FROM SUPABASE ---
-async function syncFromSupabase() {
+// --- DYNAMIC SYNC LAYER FROM SUPABASE WITH COOLDOWN ---
+let lastSyncTime = 0;
+const SYNC_COOLDOWN_MS = 5000; // 5 seconds cooldown cache
+
+async function syncFromSupabase(force = false) {
   if (!supabase) return;
+  const now = Date.now();
+  if (!force && (now - lastSyncTime < SYNC_COOLDOWN_MS)) {
+    return; // Skip sync, use current cached high-fidelity DB
+  }
+  lastSyncTime = now;
   try {
     const [uRes, cRes, jRes, aRes, sRes] = await Promise.all([
       supabase.from('users').select('*'),
