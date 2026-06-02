@@ -1,8 +1,0 @@
-{
-  "name": "JobBridge",
-  "description": "A comprehensive, light-themed Job Portal Management System for Employers, Job Seekers, and Administrators.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
