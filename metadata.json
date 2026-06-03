@@ -1,0 +1,6 @@
+{
+  "name": "JobBridge",
+  "description": "An elite, HBO Cinematic branded, role-based job ecosystem where leading recruiters cast exceptional talent in iconic engineering roles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
